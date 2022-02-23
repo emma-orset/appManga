@@ -56,7 +56,25 @@
 
 		//echo (getURLManga());
 
-		echo var_dump(getManga());
+		//echo var_dump(getManga());
+
+
+		$html = file_get_html('https://www.beer-me.fr/tags/tag/brune/');
+		// $test= $html->find("ul[class=pagination]");
+		// echo $html->find("a[href=/beer/angelus-etiquette-brune-brasserie-brootcoorens-ale-belgique--JyYcvgqljAmYVJHwmCX]", 0)->innertext;
+//$html->find("ul[class=pagination]", 0)->next_sibling()->children() as $beer
+		
+                foreach($html->find("div[class=well]", 0)->find("a[href]") as $beer){
+					//echo "bouh";
+                    //$a = $beer->find("a",1)->plaintext;
+					//$li = $beer->find("li", 0)->plaintext;
+					$beer1 = $beer->innertext;
+
+                 	echo $beer1. "<br>";
+
+                    echo "<br>------------------------<br><br>";
+
+                }
 
 		?>
 	
