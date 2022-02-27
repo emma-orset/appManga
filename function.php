@@ -1,87 +1,6 @@
 <?php 
-    function affichage($url){
-
-        $html = file_get_html($url);
-
-
-                foreach($html->find("tr[style]") as $tr){
-
-                    $a = $tr->find("a",0)->innertext;
-                    $span = $tr->find("span", 0)->innertext;
-                    $td1 = $tr->find("td", 1)->innertext;
-                    $td2 = $tr->find("td", 2)->innertext;
-                    $td3 = $tr->find("td", 3)->innertext;
-
-                    $img = $tr->find("img" );
-
-                    echo $a. "<br>";
-                    echo $span. "<br>";
-                    echo $td1. "<br>";
-                    echo $td2. "<br>";
-                    echo $td3. "<br>";
-
-                    for($i=0; $i<sizeof($img); $i++){
-                        echo $img[$i]->getAttribute('src'). "<br>";						
-                    }
-
-                    
-
-                    echo "<br>------------------------<br><br>";
-
-                }
-    }
-
-
-    function creationList($url){
-
-        $html = file_get_html($url);
-
-        $oeuvre = array();
-
-        foreach($html->find("tr[style]") as $tr){
-
-            $uneOeuvre = array();
-           
-
-            $a = $tr->find("a",0)->innertext;
-            $span = $tr->find("span", 0)->innertext;
-            $td1 = $tr->find("td", 1)->innertext;
-            $td2 = $tr->find("td", 2)->innertext;
-            $td3 = $tr->find("td", 3)->innertext;
-
-            $img = $tr->find("img");
-
-            if ($td3 == "***"){
-                $td3_= "";
-            }
-
-            else{
-                
-                $a_ = $a;
-                $span_ = $span;
-                $td1_ = $td1;
-                $td2_ = $td2;
-                $td3_ = $td3;
-            }
-
-
-            
-
-            for($i=0; $i<sizeof($img); $i++){
-                $img_= $img[$i]->getAttribute('alt');						
-            }
-
-            array_push($uneOeuvre, $a_, $span_, $td1_, $td2_, $td3_,$img_ );
-            array_push($oeuvre, $uneOeuvre);
-
-            }
-
-            
-
-        return $oeuvre;
-    }
-
-
+    
+    //Permet de récupérer une liste d'URL des lettres de l'alphabet
     function getLettre(){
 
         $urlBase = "https://www.manga-sanctuary.com";
@@ -103,19 +22,23 @@
 
     }
 
-    function getURLManga(){
+    
+
+    //A n'executer qu'une seule fois pour remplir la BDD
+    //Récupère et insert tous les URLS des oeuvres
+    function insertURL(){
 
         $urlBase = "https://www.manga-sanctuary.com";
 
-        $test = "https://www.manga-sanctuary.com/bdd/series-lettre-A.html";
-
         $manga = array();
+        global $linkDB;
+
+        $url="";
 
         foreach(getLettre() as $lettre){
+            ini_set('max_execution_time', 0);
             
-            $html = file_get_html($test);
-
-            //$html = file_get_html($test);
+            $html = file_get_html($lettre);
             
 
             foreach($html->find("tr[style]") as $tr){
@@ -133,28 +56,76 @@
                 
                 }
 
-                array_push($manga, $urlBase . $a);
+                $requete = "INSERT INTO url(url) VALUES (?)";
+
+                $url = $urlBase . $a;
+
+                $stmt=mysqli_prepare($linkDB, $requete);
+                mysqli_stmt_bind_param($stmt, "s", $url);
+
+                mysqli_stmt_execute($stmt);
+
+                
     
             }
     
-        }
-        return $manga;
+       }
+
     }
 
-    function getManga(){
+        //Récupère la liste des URL des oeuvres dans la BDD
+        function loadURL() {
+            global $linkDB;
+            $sql = "SELECT * FROM `url`";
+            $result = mysqli_query($linkDB, $sql);
+        
+            $list = array();
+            while ($row = mysqli_fetch_assoc($result))
+                $list[]=$row;
+            
+            return $list;
+        }
 
-        $manga = array();
+    //A n'executer qu'une seule fois après avoir executé insertURL
+    //Supprime les liens morts de la BDD
+    //Requête longue
+    function deleteURL(){
+
+        global $linkDB;
+        $table_urls = loadURL();
+
+        foreach($table_urls as $url){
+            ini_set('max_execution_time', 0);
+            $ceURL = $url['url'];
+            //$ceURL="https://www.manga-sanctuary.com/bdd/produitderive/62541-ki-oon-big-3/";
+            echo "<br>OK pour ". $ceURL;
+
+            if (file_get_contents($ceURL) === false) {
+
+                echo '<br>Je delete ' . $ceURL;
+                mysqli_query($linkDB, "DELETE FROM url WHERE url = '" .$ceURL . "'");
+            }
+           
+        }
+    }
+
+    //A n'executer qu'une seule fois après avoir executé insertURL et deleteURL
+    //Rempli la BDD de toutes les oeuvres
+    //Requête longue
+    function insertOeuvre(){
+        global $linkDB;
+
+        $table_urls = loadURL();
+       
         $urlBase = "https://www.manga-sanctuary.com";
 
-        foreach(getURLManga() as $url){
+
+        foreach($table_urls as $url){
 
             ini_set('max_execution_time', 0);
             
-            $html = file_get_html($url);
-
-            //$html = file_get_html("https://www.manga-sanctuary.com/bdd/manga/53529-29-sai-hitorimi-chuuken-boukensha-no-nichijou/");
+            $html = file_get_html($url['url']);
             
-
             foreach($html->find("div[id=fiche-contenu]") as $div){
 
                 $h1 ="";
@@ -186,7 +157,7 @@
                 $prix="";
                 $resume="";
 
-
+                
                 $h1 = $div->find("h1",0)->innertext;
                 $img = $div->find("img", 0)->getAttribute("src");
 
@@ -194,11 +165,11 @@
                 $rang = (int) filter_var($rang, FILTER_SANITIZE_NUMBER_INT); 
 
                 $note = $div->find("div[class=row m-3 text-center fiche-notes]",0)->first_child()->first_child()->first_child()->last_child()->prev_sibling ()->innertext;
-                $note = (float) filter_var($note);
+                $note = (double) filter_var($note);
 
                 $prix= $div->find("a[title=Acheter sur la FNAC]", 0)->last_child()->innertext;
                 $prix = preg_replace('[,]', '.', $prix); 
-                $prix = (float) filter_var($prix); 
+                $prix = (double) filter_var($prix); 
 
                 $resume=$div->find("div[id=barre-affiliation-fiche]", 0)->next_sibling()->find("p",0)->innertext;
                 
@@ -225,6 +196,7 @@
                     $categorie = searchInfos($oneSpan, $div,"Catégorie", $categorie, $i);
 
                     $annee = searchInfos($oneSpan, $div,"Année", $annee, $i);
+                    $annee = (int) filter_var($annee); 
                     $dessinateur = searchInfos($oneSpan, $div,"Dessinateur", $dessinateur, $i);
 
 
@@ -244,6 +216,8 @@
                     }
 
                     $episode = searchInfos($oneSpan, $div,"Episodes", $episode, $i);
+                    $episode = (int) filter_var($episode); 
+
                     $realisateur = searchInfos($oneSpan, $div,"Réalisateur", $realisateur, $i);
                     $chara_designer = searchInfos($oneSpan, $div,"Chara-designer", $chara_designer, $i);
                     $createur_original = searchInfos($oneSpan, $div,"Créateur original", $createur_original, $i);
@@ -256,43 +230,43 @@
 
 
                 }
-                
-
-
-                array_push($manga, 
-                    array(
-                        "Titre" => $h1, 
-                        "Image" => $urlBase . $img, 
-                        "Type" => $type, 
-                        "Année" =>  $annee, 
-                        "Catégorie" => $categorie, 
-                        "Dessinateur" =>  $dessinateur, 
-                        "Réalisateur"=> $realisateur, 
-                        "Scénariste" =>  $scenariste, 
-                        "Chara-designer"=>$chara_designer, 
-                        "Créateur original" => $createur_original, 
-                        "Directeur de l'animation"=>$animation, 
-                        "Musique"=>$musique, 
-                        "Studio"=>$studio, 
-                        "Directeur de la Photographie" => $photo, 
-                        "Genre" =>  $genres, 
-                        "Editeur" => $editeur, 
-                        "Statut" =>  $statut, 
-                        "Tome" =>  $tome, 
-                        "Episode" => $episode,
-                        "Rang"=>$rang,
-                        "Note"=>$note,
-                        "Prix"=>$prix,
-                        "Résumé"=>$resume)
-                    );
-    
             }
+
+            echo "<br>J'insert " . $h1;
+            $requete = "INSERT INTO oeuvre(titre,image,type,annee,categorie,dessinateur,realisateur,scenariste,chara_designer,createur,directeur_animation,musique,studio,directeur_photographie,genre,editeur,statut,tome,episode,rang,note,prix,resume) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+
+                $img = $urlBase .$img;
+                $stmt=mysqli_prepare($linkDB, $requete);
+                mysqli_stmt_bind_param($stmt, "sssisssssssssssssiiidds", $h1, 
+                $img, 
+                $type, 
+                $annee, 
+                $categorie, 
+                $dessinateur, 
+                $realisateur, 
+                $scenariste, 
+                $chara_designer, 
+                $createur_original, 
+                $animation, 
+                $musique, 
+                $studio, 
+                $photo, 
+                $genres, 
+                $editeur, 
+                $statut, 
+                $tome, 
+                $episode,
+                $rang,
+                $note,
+                $prix,
+                $resume);
+
+                mysqli_stmt_execute($stmt);
     
         }
-        return $manga;
     }
 
-
+    //Allègement du code quand il s'agit de chercher des champs aux caractéristiques similaires
     function searchInfos($span, $balise, $string, $attr, $i){
         if ($span ==  $string){
             $search = $balise->find("span", $i+1);
