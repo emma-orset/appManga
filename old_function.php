@@ -115,5 +115,19 @@ function creationList($url){
     return $oeuvre;
 }
 
+// A finir un jour ?
+function afficheManga(){
+    global $linkDB;
+    $start 
+    while()
+    $requete = "select * from oeuvre limit {$start}, {$nb}";
+
+    $stmt=mysqli_prepare($linkDB, $requete);
+
+    mysqli_stmt_execute($stmt);
+
+
+}
+
 
 ?>
